@@ -43,3 +43,5 @@ nbproject
 # Config w/ secrets #
 #####################
 .screeps.yaml
+
+.direnv

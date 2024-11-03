@@ -36,7 +36,7 @@ enum CreepTarget {
 
 // add wasm_bindgen to any function you would like to expose for call from js
 // to use a reserved name as a function name, use `js_name`:
-#[wasm_bindgen(js_name = loop)]
+#[wasm_bindgen(js_name = "loop")]
 pub fn game_loop() {
     INIT_LOGGING.call_once(|| {
         // show all output of Info level, adjust as needed
