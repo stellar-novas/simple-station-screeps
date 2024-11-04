@@ -13,9 +13,13 @@ use screeps::{
 	objects::{Creep, Source, StructureController},
 	prelude::*,
 };
+use screeps::Part::{Carry, Move, Work};
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use serde_wasm_bindgen;
+
+// use rand::Rng;
+// use faker_rand::en_us::names::FirstName;
 
 mod logging;
 
@@ -44,6 +48,21 @@ macro_rules! handle_err {
 
 #[macro_export]
 macro_rules! handle_warn {
+	($e:expr) => {
+		if let Err(err) = $e {
+			log::warn!(
+				"[{}:{}:{}]: {:?}",
+				file!(),
+				line!(),
+				column!(),
+				&err,
+			);
+		}
+	};
+}
+
+#[macro_export]
+macro_rules! handle_info {
 	($e:expr) => {
 		if let Err(err) = $e {
 			log::info!(
@@ -76,48 +95,63 @@ pub struct CreepMemory  {
 static INIT_LOGGING: std::sync::Once = std::sync::Once::new();
 
 // add wasm_bindgen to any function you would like to expose for call from js
-// to use a reserved name as a functhow to I matchion name, use `js_name`:
+// to use a reserved name as a function name, use `js_name`:
 #[wasm_bindgen(js_name = "loop")]
 pub fn game_loop() {
 	INIT_LOGGING.call_once(|| {
 		// show all output of Info level, adjust as needed
 		logging::setup_logging(logging::Debug);
 	});
-
 	debug!("loop starting! CPU: {}", game::cpu::get_used());
-	// TODO: Try to harvest and move if it errors.
-	// Also handle moving back to spawn if store (inventory) is full.
+	let raw_mem: String = screeps::raw_memory::get().into();
+	trace!("memory: \n {:#?}", raw_mem);
 	for creep in screeps::game::creeps().values() {
-		// let Some(cur_room) = creep.room() else { continue; };
-		// if creep.store().get_free_capacity(Some(ResourceType::Energy)) != 0 {
-		// 	let active_sources = cur_room.find(find::SOURCES_ACTIVE, None);
-		// 	debug!("creep active sources: {:#?}", active_sources);
-		// 	let Some(dest) = creep.pos().find_closest_by_path(find::SOURCES_ACTIVE, None) else { continue; };
-		// 	debug!("creep dest: {:#?}", dest);
-		// 	handle_err!(creep.move_to(dest));
-		// 	handle_warn!(creep.harvest(&creep.pos().find_closest_by_range(find::SOURCES_ACTIVE).unwrap()));
-		// }
-		// else {
-		// 	handle_err!(creep.move_to(creep.pos().find_closest_by_path(find::MY_SPAWNS, None).unwrap()));
-		// }
-
         let Some(cur_room) = creep.room() else { continue; };
 		let creep_memory: CreepMemory = serde_wasm_bindgen::from_value(creep.memory()).unwrap();
-		debug!("creep_memory: \n {:#?}", creep_memory);
+		trace!("creep_memory: \n {:#?}", creep_memory);
 		match creep_memory.role {
 			Roles::Harvester => {
+				let mut unloaded: bool = false;
 				let Some(my_source) = creep.pos().find_closest_by_path(find::SOURCES_ACTIVE, None) else { continue; };
-				if creep.store().get_free_capacity(Some(ResourceType::Energy)) != 0 {
-					if let Err(e) = creep.harvest(&my_source) {
-						let _ = creep.move_to(my_source);
+				debug!("{}'s free store capacity: {}",creep.name(), creep.store().get_free_capacity(Some(ResourceType::Energy)));
+				if {creep.store().get_free_capacity(Some(ResourceType::Energy)) > 0} | !unloaded {
+					if let Err(_e) = creep.harvest(&my_source) {
+						handle_warn!(creep.move_to(my_source));
+						continue;
 					}
 				}
-				
+				unloaded = false;
+				let nearest_spawn = creep.pos().find_closest_by_path(find::MY_SPAWNS, None);
+				if let Some(my_spawn) = nearest_spawn {
+					if my_spawn.store().get_free_capacity(Some(ResourceType::Energy)) != 0 {
+						if let Err(_e) = creep.transfer(&my_spawn, ResourceType::Energy, Some(creep.store().get_capacity(Some(ResourceType::Energy)))) {
+							handle_warn!(creep.move_to(my_spawn))
+						}
+					}
+				}
+				if let Some(controller) = cur_room.controller() {
+					if let Err(_e) = creep.upgrade_controller(&controller) {
+						handle_warn!(creep.move_to(controller));
+					}
+				}
 			}
 			Roles::Idle => {continue}
 		}
 
 
+	}
+	for spawn in game::spawns().values() {
+		if let Some(room) = spawn.room() {
+			if room.find(find::CREEPS, None).is_empty() {
+				let name = format!("Harvester-{}", game::time().to_string());
+				if let Err(_e) = spawn.spawn_creep([Move, Work, Carry].as_ref(), name.as_str()) {
+					continue
+				}
+				let creep_memory = CreepMemory {role: Roles::Harvester};
+				let creep = game::creeps().get(name).unwrap();
+				creep.set_memory(&serde_wasm_bindgen::to_value(&creep_memory).unwrap());
+			}
+		}
 	}
 
 	info!("done! cpu: {}", game::cpu::get_used());

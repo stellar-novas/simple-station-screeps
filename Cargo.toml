@@ -19,6 +19,9 @@ wasm-bindgen = "*"
 web-sys = { version = "*", features = ["console"] }
 serde = { version = "*", features = ["derive"] }
 serde-wasm-bindgen = "*"
+rand = "*"
+getrandom = { version = "*", features = ["js"] }
+faker_rand = "*"
 
 [dev-dependencies]
 wasm-bindgen-test = "*"
