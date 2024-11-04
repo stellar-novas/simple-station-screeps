@@ -15,6 +15,7 @@ use screeps::{
 };
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
+use serde_wasm_bindgen;
 
 mod logging;
 
@@ -55,11 +56,27 @@ macro_rules! handle_warn {
 		}
 	};
 }
-
+#[derive(Serialize, Deserialize, Default, Debug)]
+pub enum Roles {
+	Harvester,
+	#[default]
+	Idle,
+}
+#[derive(Serialize, Deserialize, Default, Debug)]
+#[serde(default)]
+pub struct CreepMemory  {
+	pub role: Roles,
+}
+//
+// #[derive(Serialize, Deserialize, Default, Debug)]
+// #[serde(default)]
+// pub struct HarvesterThoughts {
+// 	my_source:
+// }
 static INIT_LOGGING: std::sync::Once = std::sync::Once::new();
 
 // add wasm_bindgen to any function you would like to expose for call from js
-// to use a reserved name as a function name, use `js_name`:
+// to use a reserved name as a functhow to I matchion name, use `js_name`:
 #[wasm_bindgen(js_name = "loop")]
 pub fn game_loop() {
 	INIT_LOGGING.call_once(|| {
@@ -83,11 +100,24 @@ pub fn game_loop() {
 		// else {
 		// 	handle_err!(creep.move_to(creep.pos().find_closest_by_path(find::MY_SPAWNS, None).unwrap()));
 		// }
-		
+
         let Some(cur_room) = creep.room() else { continue; };
-		let memory = creep.memory();
-		debug!("creep memory: {:#?}", memory);
-		
+		let creep_memory: CreepMemory = serde_wasm_bindgen::from_value(creep.memory()).unwrap();
+		debug!("creep_memory: \n {:#?}", creep_memory);
+		match creep_memory.role {
+			Roles::Harvester => {
+				let Some(my_source) = creep.pos().find_closest_by_path(find::SOURCES_ACTIVE, None) else { continue; };
+				if creep.store().get_free_capacity(Some(ResourceType::Energy)) != 0 {
+					if let Err(e) = creep.harvest(&my_source) {
+						let _ = creep.move_to(my_source);
+					}
+				}
+				
+			}
+			Roles::Idle => {continue}
+		}
+
+
 	}
 
 	info!("done! cpu: {}", game::cpu::get_used());
