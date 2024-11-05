@@ -125,15 +125,12 @@ pub fn game_loop() {
 				else if creep.store().get_free_capacity(Some(ResourceType::Energy)) == 0 {
 					creep_memory.task = Tasks::Deliver;
 				}
-				else if creep_memory.task == Tasks::None { 
+				else if creep_memory.task == Tasks::None {
 					creep_memory.task = Tasks::Harvest;
 				}
 				match creep_memory.task {
 					Tasks::Harvest => {
-						let mut Some(my_source) = creep.pos().find_closest_by_path(find::SOURCES_ACTIVE, None) else { continue; };
-						if my_source.energy() == 0 {
-							my_source = 
-						}
+						let Some(mut my_source) = creep.pos().find_closest_by_path(find::SOURCES_ACTIVE, screeps::LodashFilter::new(). ) else { continue; };
 						debug!("{}'s free store capacity: {}",creep.name(), creep.store().get_free_capacity(Some(ResourceType::Energy)));
 						if let Err(_e) = creep.harvest(&my_source) {
 							handle_warn!(creep.move_to(my_source));
@@ -154,7 +151,7 @@ pub fn game_loop() {
 								handle_warn!(creep.move_to(controller));
 							}
 						}
-						
+
 					}
 					Tasks::None => {panic!("This should be unreachable!")}
 				}
