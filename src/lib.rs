@@ -118,7 +118,7 @@ pub fn game_loop() {
 	let raw_mem: String = screeps::raw_memory::get().into();
 	trace!("memory: \n {:#?}", raw_mem);
 	for creep in screeps::game::creeps().values() {
-        let Some(cur_room) = creep.room() else { continue; };
+		let Some(cur_room) = creep.room() else { continue; };
 		let mut creep_memory: CreepMemory = serde_wasm_bindgen::from_value(creep.memory()).unwrap();
 		trace!("creep_memory: \n {:#?}", creep_memory);
 		match creep_memory.role {
@@ -166,15 +166,15 @@ pub fn game_loop() {
 	}
 	for spawn in game::spawns().values() {
 		if let Some(room) = spawn.room() {
-			// if room.find(find::CREEPS, None).is_empty() {
-			// 	let name = format!("Harvester-{}", game::time());
-			// 	if let Err(_e) = spawn.spawn_creep([Move, Work, Carry].as_ref(), name.as_str()) {
-			// 		continue
-			// 	}
-			// 	let creep_memory = CreepMemory {role: Roles::Harvester, task: Tasks::Harvest };
-			// 	let creep = game::creeps().get(name).unwrap();
-			// 	creep.set_memory(&serde_wasm_bindgen::to_value(&creep_memory).unwrap());
-			// }
+			if room.find(find::CREEPS, None).is_empty() {
+				let name = format!("Harvester-{}", game::time());
+				if let Err(_e) = spawn.spawn_creep([Move, Move, Work, Carry].as_ref(), name.as_str()) {
+					continue
+				}
+				let creep_memory = CreepMemory {role: Roles::Harvester, task: Tasks::Harvest };
+				let creep = game::creeps().get(name).unwrap();
+				creep.set_memory(&serde_wasm_bindgen::to_value(&creep_memory).unwrap());
+			}
 			
 		}
 	}
