@@ -94,6 +94,10 @@ pub struct CreepMemory  {
 	pub role: Roles,
 	pub task: Tasks
 }
+
+pub struct DesiredCreeps {
+	
+}
 //
 // #[derive(Serialize, Deserialize, Default, Debug)]
 // #[serde(default)]
@@ -130,7 +134,7 @@ pub fn game_loop() {
 				}
 				match creep_memory.task {
 					Tasks::Harvest => {
-						let Some(mut my_source) = creep.pos().find_closest_by_path(find::SOURCES_ACTIVE, screeps::LodashFilter::new(). ) else { continue; };
+						let Some(my_source) = creep.pos().find_closest_by_path(find::SOURCES_ACTIVE, None) else { continue; };
 						debug!("{}'s free store capacity: {}",creep.name(), creep.store().get_free_capacity(Some(ResourceType::Energy)));
 						if let Err(_e) = creep.harvest(&my_source) {
 							handle_warn!(creep.move_to(my_source));
@@ -162,15 +166,16 @@ pub fn game_loop() {
 	}
 	for spawn in game::spawns().values() {
 		if let Some(room) = spawn.room() {
-			if room.find(find::CREEPS, None).is_empty() {
-				let name = format!("Harvester-{}", game::time());
-				if let Err(_e) = spawn.spawn_creep([Move, Work, Carry].as_ref(), name.as_str()) {
-					continue
-				}
-				let creep_memory = CreepMemory {role: Roles::Harvester, task: Tasks::Harvest };
-				let creep = game::creeps().get(name).unwrap();
-				creep.set_memory(&serde_wasm_bindgen::to_value(&creep_memory).unwrap());
-			}
+			// if room.find(find::CREEPS, None).is_empty() {
+			// 	let name = format!("Harvester-{}", game::time());
+			// 	if let Err(_e) = spawn.spawn_creep([Move, Work, Carry].as_ref(), name.as_str()) {
+			// 		continue
+			// 	}
+			// 	let creep_memory = CreepMemory {role: Roles::Harvester, task: Tasks::Harvest };
+			// 	let creep = game::creeps().get(name).unwrap();
+			// 	creep.set_memory(&serde_wasm_bindgen::to_value(&creep_memory).unwrap());
+			// }
+			
 		}
 	}
 
