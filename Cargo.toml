@@ -6,6 +6,7 @@ edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+proc-macro = true
 
 [dependencies]
 js-sys = "*"
@@ -21,7 +22,7 @@ serde = { version = "*", features = ["derive"] }
 serde-wasm-bindgen = "*"
 rand = "*"
 getrandom = { version = "*", features = ["js"] }
-faker_rand = "*"
+fake = { version = "*", features = ["derive"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "*"
