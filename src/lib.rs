@@ -1,5 +1,5 @@
 use std::{
-	cell::RefCell,
+	// cell::RefCell,
 	collections::{hash_map::Entry, HashMap, HashSet},
 };
 use std::fmt::{Display, Formatter};
@@ -115,8 +115,8 @@ static INIT_LOGGING: std::sync::Once = std::sync::Once::new();
 // to use a reserved name as a function name, use `js_name`:
 
 #[wasm_bindgen]
-pub fn set_log_level(level: &str) -> Result<(), String>{
-	let log_level = match level {
+pub fn set_log_level(level: String) -> Result<(), String>{
+	let log_level = match level.as_str() {
 		"error" => LevelFilter::Error,
 		"warn" => LevelFilter::Warn,
 		"info" => LevelFilter::Info,
@@ -128,13 +128,30 @@ pub fn set_log_level(level: &str) -> Result<(), String>{
 	Ok(())
 }
 
-// pub fn dump_room_memory(room_id: String) -> Result<String, ErrorCode> {
-// 	let room = game::rooms().get(room_id.parse().unwrap());
-// 	if let Some(room) = room {
-// 		let room_memory: RoomMemory = serde_wasm_bindgen::from_value(room.memory()).unwrap();
-// 		return Ok(format!("room_memory: \n {:#?}", room_memory));
-// 	};
-// }
+pub fn get_room(room_id: String) -> Result<Room, String> {
+	let room = game::rooms().get(room_id.parse().unwrap());
+	if let Some(room) = room {
+		return Ok(room);
+	};
+	Err("Room not found".to_string())
+}
+
+#[wasm_bindgen]
+pub fn dump_room_memory(room_id: String) -> Result<String, String> {
+	let room = get_room(room_id).or_else(|e| Err(e))?;
+	let room_memory: RoomMemory = serde_wasm_bindgen::from_value(room.memory()).unwrap();
+	return Ok(format!("room_memory: \n {:#?}", room_memory));
+}
+
+#[wasm_bindgen]
+pub fn dump_creep_memory(creep_name: String) -> Result<String, String> {
+	let creep = game::creeps().get(creep_name);
+	if let Some(creep) = creep {
+		let creep_memory: CreepMemory = serde_wasm_bindgen::from_value(creep.memory()).unwrap();
+		return Ok(format!("creep_memory: \n {:#?}", creep_memory));
+	};
+	Err("Creep not found".to_string())
+}
 
 pub fn spawn_creep(spawn: &StructureSpawn, role: Roles) -> Result<(), ErrorCode> {
 	let name: String = Name(EN).fake();
@@ -160,6 +177,26 @@ pub fn spawn_creep(spawn: &StructureSpawn, role: Roles) -> Result<(), ErrorCode>
 	if let Err(_e) = spawn.spawn_creep(body.as_ref(), name.as_str()) {
 		return Err(ErrorCode::NotEnough);
 	}
+	Ok(())
+}
+
+#[wasm_bindgen]
+pub fn get_creeps(roomid: String) -> Result<String, String> {
+	let room = get_room(roomid)?;
+	let room_memory: RoomMemory = serde_wasm_bindgen::from_value(room.memory()).unwrap();
+	Ok(format!("Creeps: \n {:#?}", room_memory.wanted_creeps))
+}
+
+#[wasm_bindgen]
+pub fn set_creeps(roomid: String, role: String, count: u8) -> Result<(), String> {
+	let room = get_room(roomid)?;
+	let mut room_memory: RoomMemory = serde_wasm_bindgen::from_value(room.memory()).unwrap();
+	match role.as_str() {
+		"harvester" => {room_memory.wanted_creeps.harvester = count}
+		"fighter" => {room_memory.wanted_creeps.fighter = count}
+		_ => {return Err("Invalid role".to_string())}
+	}
+	room.set_memory(&serde_wasm_bindgen::to_value(&room_memory).unwrap());
 	Ok(())
 }
 
@@ -219,15 +256,6 @@ pub fn game_loop() {
 	}
 	for spawn in game::spawns().values() {
 		if let Some(room) = spawn.room() {
-			// if room.find(find::CREEPS, None).is_empty() {
-			// 	let name = format!("Harvester-{}", game::time());
-			// 	if let Err(_e) = spawn.spawn_creep([Move, Move, Work, Carry].as_ref(), name.as_str()) {
-			// 		continue
-			// 	}
-			// 	let creep_memory = CreepMemory {role: Roles::Harvester, task: Tasks::Harvest };
-			// 	let creep = game::creeps().get(name).unwrap();
-			// 	creep.set_memory(&serde_wasm_bindgen::to_value(&creep_memory).unwrap());
-			// }
 			let room_memory: RoomMemory = serde_wasm_bindgen::from_value(room.memory()).unwrap();
 			trace!("room_memory: \n {:#?}", room_memory);
 			let mut current_creeps = CreepCounts {harvester: 0, fighter: 0};
@@ -240,7 +268,12 @@ pub fn game_loop() {
 				}
 			}
 			trace!("current_creeps: \n {:#?}", current_creeps);
-
+			if current_creeps.harvester < room_memory.wanted_creeps.harvester {
+				handle_info!(spawn_creep(&spawn, Roles::Harvester));
+			}
+			else if current_creeps.fighter < room_memory.wanted_creeps.fighter {
+				handle_info!(spawn_creep(&spawn, Roles::Fighter));
+			}
 		}
 	}
 
