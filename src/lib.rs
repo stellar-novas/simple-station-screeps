@@ -13,6 +13,8 @@ use serde::{Serialize, Deserialize};
 
 use fake::faker::name::raw::*;
 use fake::locales::*;
+use screeps::game::creeps;
+use strum;
 
 mod logging;
 
@@ -69,7 +71,7 @@ macro_rules! handle_info {
 	};
 }
 
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug, strum::Display)]
 pub enum Roles {
 	Harvester,
 	Fighter,
@@ -154,29 +156,22 @@ pub fn dump_creep_memory(creep_name: String) -> Result<String, String> {
 }
 
 pub fn spawn_creep(spawn: &StructureSpawn, role: Roles) -> Result<(), ErrorCode> {
-	let name: String = Name(EN).fake();
+	let name: String = format!("{}-{}", role, game::time());
 	let body: Vec<Part> = match role {
 		Roles::Harvester => vec![Work, Move, Carry, Move, Carry],
 		Roles::Fighter => vec![Move, Move, Move, RangedAttack],
 		_ => panic!("Invalid role")
 	};
-	match role {
-		Roles::Harvester => {
-			let body: Vec<Part> = vec![Work, Move, Carry, Move, Carry];
-			let creep_memory = CreepMemory {role: Roles::Harvester, task: Tasks::Harvest};
-		}
-		Roles::Fighter => {
-			let body: Vec<Part> = vec![Move, Move, Move, RangedAttack];
-			let creep_memory = CreepMemory {role: Roles::Fighter, task: Tasks::Patrol};
-		}
-		Roles::Idle => {
-			let body: Vec<Part> = vec![Work, Move, Carry, Move, Carry];
-			let creep_memory = CreepMemory {role: Roles::Idle, task: Tasks::None};
-		}
-	}
+	let creep_memory: CreepMemory = match role {
+		Roles::Harvester => CreepMemory {role: Roles::Harvester, task: Tasks::Harvest},
+		Roles::Fighter => CreepMemory {role: Roles::Fighter, task: Tasks::Patrol},
+		Roles::Idle => CreepMemory {role: Roles::Idle, task: Tasks::None},
+	};
 	if let Err(_e) = spawn.spawn_creep(body.as_ref(), name.as_str()) {
 		return Err(ErrorCode::NotEnough);
 	}
+	let creep = creeps().get(name).unwrap();
+	creep.set_memory(&serde_wasm_bindgen::to_value(&creep_memory).unwrap());
 	Ok(())
 }
 
@@ -204,7 +199,7 @@ pub fn set_creeps(roomid: String, role: String, count: u8) -> Result<(), String>
 pub fn game_loop() {
 	INIT_LOGGING.call_once(|| {
 		// show all output of Info level, adjust as needed
-		logging::setup_logging(logging::Trace);
+		logging::setup_logging(logging::Warn);
 	});
 	debug!("loop starting! CPU: {}", game::cpu::get_used());
 	let raw_mem: String = screeps::raw_memory::get().into();
@@ -232,15 +227,15 @@ pub fn game_loop() {
 					}
 					Tasks::Deliver => {
 						let nearest_spawn = creep.pos().find_closest_by_path(find::MY_SPAWNS, None);
-						if let Some(my_spawn) = nearest_spawn {
-							if my_spawn.store().get_free_capacity(Some(ResourceType::Energy)) != 0 {
-								if let Err(_e) = creep.transfer(&my_spawn, ResourceType::Energy, Some(creep.store().get_capacity(Some(ResourceType::Energy)))) {
-									handle_warn!(creep.move_to(my_spawn));
-									continue;
-								}
-							}
-						}
-						else if let Some(controller) = cur_room.controller() {
+						// if let Some(my_spawn) = nearest_spawn {
+						// 	if my_spawn.store().get_free_capacity(Some(ResourceType::Energy)) != 0 {
+						// 		if let Err(_e) = creep.transfer(&my_spawn, ResourceType::Energy, Some(creep.store().get_capacity(Some(ResourceType::Energy)))) {
+						// 			handle_warn!(creep.move_to(my_spawn));
+						// 			continue;
+						// 		}
+						// 	}
+						// }
+						if let Some(controller) = cur_room.controller() {
 							if let Err(_e) = creep.upgrade_controller(&controller) {
 								handle_warn!(creep.move_to(controller));
 							}
@@ -248,6 +243,19 @@ pub fn game_loop() {
 					}
 					Tasks::Patrol => {panic!("Impossible task for harvester")}
 					Tasks::None => {creep_memory.task = Tasks::Harvest;}
+				}
+			}
+			Roles::Fighter => {
+				match creep_memory.task {
+					Tasks::Patrol => {
+						let enemy = creep.pos().find_closest_by_path(find::HOSTILE_CREEPS, None);
+						if let Some(my_enemy) = enemy {
+							if let Err(_e) = creep.ranged_attack(&my_enemy) {
+								handle_warn!(creep.move_to(&my_enemy))
+							}
+						}
+					}
+					_ => {}
 				}
 			}
 			_ => {continue}

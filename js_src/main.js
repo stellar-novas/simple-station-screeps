@@ -39,6 +39,14 @@ function loaded_loop() {
         Game.cpu.halt();
     } else {
         try {
+            global.cmds = {}
+            for (let key in bot) {
+                // if (key.startsWith('cmd')) {
+                //     const cmd = key.slice(3)
+                //     cmds[cmd] = bot[key]
+                // }
+                cmds[key] = bot[key]
+            }
             running = true;
             bot.loop();
             // if execution doesn't get to this point for any reason (error or out-of-CPU
